@@ -1,44 +1,75 @@
-﻿using LasmartTestTask.Abstractions;
+﻿using AutoMapper;
+using LasmartTestTask.Abstractions;
+using LasmartTestTask.Data;
+using LasmartTestTask.Data.Entites;
+using LasmartTestTask.Exceptions;
 using LasmartTestTask.ViewModels.Request;
 using LasmartTestTask.ViewModels.Response;
+using Microsoft.EntityFrameworkCore;
 
 namespace LasmartTestTask.Services
 {
     public class PointsService : IPointsService
     {
-        public Task<PointDto> Create(CreatePointDto pointDto)
+        private readonly IMapper _mapper;
+        private readonly ApplicationContext _dbContext;
+
+        public PointsService(
+            IMapper mapper,
+            ApplicationContext dbContext)
         {
-            throw new NotImplementedException();
+            _mapper = mapper;
+            _dbContext = dbContext;
         }
 
-        public Task Delete(int id)
+        public async Task<PointDto> Get(int id)
         {
-            throw new NotImplementedException();
+            var point = await _dbContext.Points.AsNoTracking().Include(p => p.Comments).FirstOrDefaultAsync(p => p.Id == id);
+            if (point == null)
+                throw new ServiceException("Point Not Found", $"Point with id {id} not found.", StatusCodes.Status404NotFound);
+
+            return _mapper.Map<PointDto>(point);
         }
 
-        public Task<PointDto> Get(int id)
+        public async Task<PointDto[]> Get()
         {
-            throw new NotImplementedException();
+            var points = await _dbContext.Points.AsNoTracking().Include(p => p.Comments).ToArrayAsync();
+            return _mapper.Map<PointDto[]>(points);
         }
 
-        public Task<PointDto[]> Get()
+        public async Task<PointDto> Create(CreatePointDto pointDto)
         {
-            throw new NotImplementedException();
+            var point = _mapper.Map<Point>(pointDto);
+            await _dbContext.Points.AddAsync(point);
+            await _dbContext.SaveChangesAsync();
+
+            return _mapper.Map<PointDto>(point);
         }
 
-        public Task<PointDto> Update(UpdatePointDto pointDto)
+        public async Task<PointDto> Update(int id, UpdatePointDto pointDto)
         {
-            throw new NotImplementedException();
+            var point = await _dbContext.Points.Include(p => p.Comments).FirstOrDefaultAsync(m => m.Id == id);
+            if (point == null)
+                throw new ServiceException("Point Not Found", $"Point with id {id} not found.", StatusCodes.Status404NotFound);
+
+            point.X = pointDto.X;
+            point.Y = pointDto.Y;
+            point.ColorHEX = pointDto.ColorHEX;
+            point.Radius = pointDto.Radius;
+            point.Comments = _mapper.Map<List<Comment>>(pointDto.Comments); //TODO: проверить что обновлятся
+            await _dbContext.SaveChangesAsync();
+
+            return _mapper.Map<PointDto>(point);
         }
 
-        Task<PointDto> IPointsService.Get(int id)
+        public async Task Delete(int id)
         {
-            throw new NotImplementedException();
-        }
+            var point = await _dbContext.Points.FirstOrDefaultAsync(m => m.Id == id);
+            if (point == null)
+                throw new ServiceException("Point Not Found", $"Point with id {id} not found.", StatusCodes.Status404NotFound);
 
-        Task<PointDto[]> IPointsService.Get()
-        {
-            throw new NotImplementedException();
+            _dbContext.Points.Remove(point);
+            await _dbContext.SaveChangesAsync();
         }
     }
 }

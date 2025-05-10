@@ -10,7 +10,13 @@ namespace LasmartTestTask.Models
         public AutoMapperProfile()
         {
             CreateMap<CreatePointDto, Point>();
+            CreateMap<UpdatePointDto, Point>();
+            CreateMap<CreateCommentDto, Comment>();
+            CreateMap<UpdateCommentDto, Comment>();
+            
             CreateMap<Point, PointDto>();
+            CreateMap<Comment, CommentDto>();
+
         }
     }
 }

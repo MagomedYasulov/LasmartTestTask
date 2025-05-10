@@ -37,6 +37,13 @@ namespace LasmartTestTask.Controllers
             return Ok(pointDto);
         }
 
+        [HttpPut("{pointId}")]
+        public async Task<ActionResult<PointDto[]>> Update(int pointId, UpdatePointDto model)
+        {
+            var pointDto = await _pointsService.Update(pointId, model);
+            return Ok(pointDto);
+        }
+
         [HttpDelete("{pointId}")]
         public async Task<ActionResult> Delete(int pointId)
         {

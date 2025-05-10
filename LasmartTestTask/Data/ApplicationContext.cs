@@ -5,7 +5,7 @@ namespace LasmartTestTask.Data
 {
     public class ApplicationContext : DbContext
     {
-        public DbSet<Point> Positions => Set<Point>();
+        public DbSet<Point> Points => Set<Point>();
         public DbSet<Comment> Comments => Set<Comment>();
 
         public ApplicationContext(DbContextOptions<ApplicationContext> options) : base(options)
