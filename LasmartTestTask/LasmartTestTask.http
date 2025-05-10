@@ -1,0 +1,6 @@
+@LasmartTestTask_HostAddress = http://localhost:5292
+
+GET {{LasmartTestTask_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
