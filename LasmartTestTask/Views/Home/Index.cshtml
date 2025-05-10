@@ -1,5 +1,216 @@
-﻿@*
-    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
-*@
-@{
-}
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Points Manager</title>
+    <!-- Konva.js -->
+    <script src="https://cdn.jsdelivr.net/npm/konva@8.4.3/konva.min.js"></script>
+    <!-- Axios -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            position: relative;
+        }
+
+        #container {
+            flex: 1;
+            background: #f0f0f0;
+        }
+
+        #sidebar {
+            width: 300px;
+            padding: 10px;
+            background: #fff;
+            border-left: 1px solid #ccc;
+            overflow-y: auto;
+        }
+
+            #sidebar input {
+                width: 100%;
+                margin-bottom: 8px;
+            }
+
+        h3 {
+            margin-bottom: 8px;
+        }
+
+        button {
+            cursor: pointer;
+            margin-bottom: 8px;
+        }
+        /* hidden editors */
+        #comment-text-editor, #comment-color-picker {
+            position: absolute;
+            display: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <input type="text" id="comment-text-editor" />
+    <input type="color" id="comment-color-picker" />
+    <div id="sidebar">
+        <h3>Create New Point</h3>
+        <input type="number" id="new-x" placeholder="X" value="50" />
+        <input type="number" id="new-y" placeholder="Y" value="50" />
+        <input type="number" id="new-radius" placeholder="Radius" value="30" />
+        <input type="color" id="new-color" value="#00aced" />
+        <button id="create-point" type="button">Create Point</button>
+        <hr />
+        <h3>Edit Point</h3>
+        <input type="hidden" id="point-id" />
+        <input type="number" id="point-x" placeholder="X" />
+        <input type="number" id="point-y" placeholder="Y" />
+        <input type="number" id="point-radius" placeholder="Radius" />
+        <input type="color" id="point-color" />
+        <button id="save-point" type="button">Save Changes</button>
+    </div>
+
+
+    <script>
+// app.js
+(function() {
+  var stage = new Konva.Stage({
+    container: 'container',
+    width: window.innerWidth - 300,
+    height: window.innerHeight
+  });
+  var layer = new Konva.Layer();
+  stage.add(layer);
+  var points = {}, commentGroups = {};
+  var selectedId = null;
+  var textEditor = document.getElementById('comment-text-editor');
+  var colorPicker = document.getElementById('comment-color-picker');
+  var currentEdit = null; // { commentObj, type }
+
+  function drawComments(p) {
+    if (commentGroups[p.id]) commentGroups[p.id].destroy();
+    var group = new Konva.Group();
+    var spacing = 6;
+    var baseY = p.y + p.radius + 10;
+    var commentWidth = p.radius * 6;
+
+    (p.comments || []).forEach(function(c, i) {
+      var yPos = baseY + i * (28 + spacing);
+
+      var background = new Konva.Rect({ x: p.x - commentWidth/2, y: yPos, width: commentWidth, height: 28, fill: c.colorHEX, cornerRadius: 4 });
+      var text = new Konva.Text({ text: c.text, fontSize: 14, x: background.x() + 24, y: yPos + 6, width: commentWidth - 48, align: 'left' });
+      // color square
+      var colorSq = new Konva.Rect({ x: background.x() + 4, y: yPos + 6, width: 14, height: 14, fill: c.colorHEX, stroke: '#fff', strokeWidth: 1 });
+      // delete X
+      var deleteX = new Konva.Text({ text: '✖', fontSize: 14, x: background.x() + commentWidth - 18, y: yPos + 6, fill: '#000' });
+
+      // events
+      text.on('dblclick', function(evt) {
+        openTextEditor(evt, c);
+      });
+      colorSq.on('click', function(evt) {
+        openColorPicker(evt, c);
+      });
+      deleteX.on('click', function() {
+        p.comments = p.comments.filter(function(cc) { return cc !== c; });
+        updateComments(p.id, p.comments);
+      });
+
+      group.add(background, colorSq, text, deleteX);
+    });
+
+    // plus below
+    var plusY = baseY + (p.comments.length) * (28 + spacing) + 10;
+    var plus = new Konva.Text({ text: '+', fontSize: 20, fontStyle: 'bold', fill: '#333', x: p.x - 6, y: plusY, width: 12, align: 'center' });
+    plus.on('click', function() {
+      var cArr = p.comments = p.comments || [];
+      var newC = { id: 0, text: 'New comment', colorHEX: '#ffffaa' };
+      cArr.push(newC);
+      updateComments(p.id, cArr);
+    });
+    group.add(plus);
+
+    layer.add(group);
+    commentGroups[p.id] = group;
+  }
+
+  function openTextEditor(evt, comment) {
+    var pos = stage.getPointerPosition();
+    textEditor.style.left = pos.x + 'px';
+    textEditor.style.top = pos.y + 'px';
+    textEditor.value = comment.text;
+    textEditor.style.display = 'block';
+    textEditor.focus();
+    currentEdit = { comment: comment, type: 'text', pointId: selectedId };
+  }
+  function openColorPicker(evt, comment) {
+    var pos = stage.getPointerPosition();
+    colorPicker.style.left = pos.x + 'px';
+    colorPicker.style.top = pos.y + 'px';
+    colorPicker.value = comment.colorHEX;
+    colorPicker.style.display = 'block';
+    currentEdit = { comment: comment, type: 'color', pointId: selectedId };
+  }
+
+  textEditor.addEventListener('blur', function() {
+    if (currentEdit && currentEdit.type === 'text') {
+      currentEdit.comment.text = textEditor.value;
+      updateComments(currentEdit.pointId, points[currentEdit.pointId].data.comments);
+    }
+    textEditor.style.display = 'none';
+    currentEdit = null;
+  });
+  colorPicker.addEventListener('input', function() {
+    if (currentEdit && currentEdit.type === 'color') {
+      currentEdit.comment.colorHEX = colorPicker.value;
+      updateComments(currentEdit.pointId, points[currentEdit.pointId].data.comments);
+    }
+  });
+  colorPicker.addEventListener('blur', function() {
+    colorPicker.style.display = 'none'; currentEdit = null;
+  });
+
+  function loadPoints() {
+    axios.get('/api/v1/points').then(function(resp) {
+      layer.destroyChildren(); points = {}; commentGroups = {};
+      resp.data.forEach(function(p) {
+        var circle = new Konva.Circle({ x: p.x, y: p.y, radius: p.radius, fill: p.colorHEX, stroke: '#000', strokeWidth: 1, draggable: true });
+        circle.on('click', function() { selectedId = p.id; });
+        circle.on('dblclick', function() { axios.delete('/api/v1/points/'+p.id).then(loadPoints); });
+        circle.on('dragmove', function() { p.x = circle.x(); p.y = circle.y(); drawComments(p); layer.batchDraw(); });
+        circle.on('dragend', function() { axios.put('/api/v1/points/'+p.id, p).then(loadPoints); });
+        layer.add(circle);
+        points[p.id] = { data: p, shape: circle };
+        drawComments(p);
+      });
+      layer.draw();
+    });
+  }
+
+  function updateComments(id, comments) {
+    axios.put('/api/v1/points/'+id, Object.assign({}, points[id].data, { comments: comments })).then(loadPoints);
+  }
+
+  document.getElementById('create-point').addEventListener('click', function() {
+    var x=+document.getElementById('new-x').value,
+        y=+document.getElementById('new-y').value,
+        r=+document.getElementById('new-radius').value,
+        col=document.getElementById('new-color').value;
+    axios.post('/api/v1/points',{x:x,y:y,radius:r,colorHEX:col,comments:[]}).then(loadPoints);
+  });
+  document.getElementById('save-point').addEventListener('click', function() {
+    if(!selectedId) return; var p=points[selectedId].data;
+    p.x=+document.getElementById('point-x').value;
+    p.y=+document.getElementById('point-y').value;
+    p.radius=+document.getElementById('point-radius').value;
+    p.colorHEX=document.getElementById('point-color').value;
+    axios.put('/api/v1/points/'+selectedId,p).then(loadPoints);
+  });
+
+  loadPoints();
+})();
+</script>
+</body>
+</html>
