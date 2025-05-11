@@ -56,7 +56,6 @@ namespace LasmartTestTask.Services
             point.Y = pointDto.Y;
             point.ColorHEX = pointDto.ColorHEX;
             point.Radius = pointDto.Radius;
-            point.Comments = _mapper.Map<List<Comment>>(pointDto.Comments); //TODO: проверить что обновлятся
             await _dbContext.SaveChangesAsync();
 
             return _mapper.Map<PointDto>(point);
@@ -70,6 +69,18 @@ namespace LasmartTestTask.Services
 
             _dbContext.Points.Remove(point);
             await _dbContext.SaveChangesAsync();
+        }
+
+        public async Task<PointDto> UpdateComments(int pointId, CreateCommentDto[] commentDto)
+        {
+            var point = await _dbContext.Points.Include(p => p.Comments).FirstOrDefaultAsync(m => m.Id == pointId);
+            if (point == null)
+                throw new ServiceException("Point Not Found", $"Point with id {pointId} not found.", StatusCodes.Status404NotFound);
+
+            point.Comments = _mapper.Map<List<Comment>>(commentDto);
+            await _dbContext.SaveChangesAsync();
+
+            return _mapper.Map<PointDto>(point);
         }
     }
 }

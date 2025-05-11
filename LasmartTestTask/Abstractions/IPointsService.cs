@@ -9,6 +9,8 @@ namespace LasmartTestTask.Abstractions
         public Task<PointDto[]> Get();
         public Task<PointDto> Create(CreatePointDto pointDto);
         public Task<PointDto> Update(int id, UpdatePointDto pointDto);
-        public Task Delete(int id);
+        public Task Delete(int pointId);
+
+        public Task<PointDto> UpdateComments(int pointId, CreateCommentDto[] commentDto);
     }
 }

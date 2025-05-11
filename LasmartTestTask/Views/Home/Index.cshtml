@@ -73,144 +73,169 @@
     </div>
 
 
-    <script>
+<script>
+
+    var stage = new Konva.Stage({
+        container: 'container',
+        width: window.innerWidth - 300,
+        height: window.innerHeight
+    });
+
+    var layer = new Konva.Layer();
+    stage.add(layer);
+
+    var points = {};
+
+    function loadPoints() {
+        axios.get('/api/v1/points').then(function(resp) {
+            layer.destroyChildren(); 
+            points = {}; 
+            commentGroups = {};
+            resp.data.forEach(function(p) {
+                var circle = new Konva.Circle(
+                { 
+                    x: p.x, 
+                    y: p.y, 
+                    radius: p.radius, 
+                    fill: p.colorHEX, 
+                    stroke: '#000', 
+                    strokeWidth: 1, 
+                    draggable: true 
+                });
+
+                circle.on('click', function() { selectedId = p.id; });
+                circle.on('dblclick', function() { axios.delete('/api/v1/points/'+p.id).then(loadPoints); });
+                circle.on('dragmove', function() { p.x = circle.x(); p.y = circle.y(); drawComments(p); layer.batchDraw(); });
+                circle.on('dragend', function() { axios.put('/api/v1/points/'+p.id, p).then(loadPoints); });
+                layer.add(circle);
+                points[p.id] = { data: p, shape: circle };
+                //drawComments(p);
+            });
+            layer.draw();
+        });
+    }
+
+    loadPoints();
+
 // app.js
-(function() {
-  var stage = new Konva.Stage({
-    container: 'container',
-    width: window.innerWidth - 300,
-    height: window.innerHeight
-  });
-  var layer = new Konva.Layer();
-  stage.add(layer);
-  var points = {}, commentGroups = {};
-  var selectedId = null;
-  var textEditor = document.getElementById('comment-text-editor');
-  var colorPicker = document.getElementById('comment-color-picker');
-  var currentEdit = null; // { commentObj, type }
+// (function() {
+  
+  
+//   var points = {}, commentGroups = {};
+//   var selectedId = null;
+//   var textEditor = document.getElementById('comment-text-editor');
+//   var colorPicker = document.getElementById('comment-color-picker');
+//   var currentEdit = null; { commentObj, type }
 
-  function drawComments(p) {
-    if (commentGroups[p.id]) commentGroups[p.id].destroy();
-    var group = new Konva.Group();
-    var spacing = 6;
-    var baseY = p.y + p.radius + 10;
-    var commentWidth = p.radius * 6;
+//   function drawComments(p) {
+//     if (commentGroups[p.id]) 
+//         commentGroups[p.id].destroy();
+    
+//     var group = new Konva.Group();
+//     var spacing = 6;
+//     var baseY = p.y + p.radius + 10;
+//     var commentWidth = p.radius * 6;
 
-    (p.comments || []).forEach(function(c, i) {
-      var yPos = baseY + i * (28 + spacing);
+//     (p.comments || []).forEach(function(c, i) {
+//       var yPos = baseY + i * (28 + spacing);
 
-      var background = new Konva.Rect({ x: p.x - commentWidth/2, y: yPos, width: commentWidth, height: 28, fill: c.colorHEX, cornerRadius: 4 });
-      var text = new Konva.Text({ text: c.text, fontSize: 14, x: background.x() + 24, y: yPos + 6, width: commentWidth - 48, align: 'left' });
-      // color square
-      var colorSq = new Konva.Rect({ x: background.x() + 4, y: yPos + 6, width: 14, height: 14, fill: c.colorHEX, stroke: '#fff', strokeWidth: 1 });
-      // delete X
-      var deleteX = new Konva.Text({ text: '✖', fontSize: 14, x: background.x() + commentWidth - 18, y: yPos + 6, fill: '#000' });
+//       var background = new Konva.Rect({ x: p.x - commentWidth/2, y: yPos, width: commentWidth, height: 28, fill: c.colorHEX, cornerRadius: 4 });
+//       var text = new Konva.Text({ text: c.text, fontSize: 14, x: background.x() + 24, y: yPos + 6, width: commentWidth - 48, align: 'left' });
+//       color square
+//       var colorSq = new Konva.Rect({ x: background.x() + 4, y: yPos + 6, width: 14, height: 14, fill: c.colorHEX, stroke: '#fff', strokeWidth: 1 });
+//       delete X
+//       var deleteX = new Konva.Text({ text: '✖', fontSize: 14, x: background.x() + commentWidth - 18, y: yPos + 6, fill: '#000' });
 
-      // events
-      text.on('dblclick', function(evt) {
-        openTextEditor(evt, c);
-      });
-      colorSq.on('click', function(evt) {
-        openColorPicker(evt, c);
-      });
-      deleteX.on('click', function() {
-        p.comments = p.comments.filter(function(cc) { return cc !== c; });
-        updateComments(p.id, p.comments);
-      });
+//       events
+//       text.on('dblclick', function(evt) {
+//         openTextEditor(evt, c);
+//       });
+//       colorSq.on('click', function(evt) {
+//         openColorPicker(evt, c);
+//       });
+//       deleteX.on('click', function() {
+//         p.comments = p.comments.filter(function(cc) { return cc !== c; });
+//         updateComments(p.id, p.comments);
+//       });
 
-      group.add(background, colorSq, text, deleteX);
-    });
+//       group.add(background, colorSq, text, deleteX);
+//     });
 
-    // plus below
-    var plusY = baseY + (p.comments.length) * (28 + spacing) + 10;
-    var plus = new Konva.Text({ text: '+', fontSize: 20, fontStyle: 'bold', fill: '#333', x: p.x - 6, y: plusY, width: 12, align: 'center' });
-    plus.on('click', function() {
-      var cArr = p.comments = p.comments || [];
-      var newC = { id: 0, text: 'New comment', colorHEX: '#ffffaa' };
-      cArr.push(newC);
-      updateComments(p.id, cArr);
-    });
-    group.add(plus);
+//     plus below
+//     var plusY = baseY + (p.comments.length) * (28 + spacing) + 10;
+//     var plus = new Konva.Text({ text: '+', fontSize: 20, fontStyle: 'bold', fill: '#333', x: p.x - 6, y: plusY, width: 12, align: 'center' });
+//     plus.on('click', function() {
+//       var cArr = p.comments = p.comments || [];
+//       var newC = { id: 0, text: 'New comment', colorHEX: '#ffffaa' };
+//       cArr.push(newC);
+//       updateComments(p.id, cArr);
+//     });
+//     group.add(plus);
 
-    layer.add(group);
-    commentGroups[p.id] = group;
-  }
+//     layer.add(group);
+//     commentGroups[p.id] = group;
+//   }
 
-  function openTextEditor(evt, comment) {
-    var pos = stage.getPointerPosition();
-    textEditor.style.left = pos.x + 'px';
-    textEditor.style.top = pos.y + 'px';
-    textEditor.value = comment.text;
-    textEditor.style.display = 'block';
-    textEditor.focus();
-    currentEdit = { comment: comment, type: 'text', pointId: selectedId };
-  }
-  function openColorPicker(evt, comment) {
-    var pos = stage.getPointerPosition();
-    colorPicker.style.left = pos.x + 'px';
-    colorPicker.style.top = pos.y + 'px';
-    colorPicker.value = comment.colorHEX;
-    colorPicker.style.display = 'block';
-    currentEdit = { comment: comment, type: 'color', pointId: selectedId };
-  }
+//   function openTextEditor(evt, comment) {
+//     var pos = stage.getPointerPosition();
+//     textEditor.style.left = pos.x + 'px';
+//     textEditor.style.top = pos.y + 'px';
+//     textEditor.value = comment.text;
+//     textEditor.style.display = 'block';
+//     textEditor.focus();
+//     currentEdit = { comment: comment, type: 'text', pointId: selectedId };
+//   }
+//   function openColorPicker(evt, comment) {
+//     var pos = stage.getPointerPosition();
+//     colorPicker.style.left = pos.x + 'px';
+//     colorPicker.style.top = pos.y + 'px';
+//     colorPicker.value = comment.colorHEX;
+//     colorPicker.style.display = 'block';
+//     currentEdit = { comment: comment, type: 'color', pointId: selectedId };
+//   }
 
-  textEditor.addEventListener('blur', function() {
-    if (currentEdit && currentEdit.type === 'text') {
-      currentEdit.comment.text = textEditor.value;
-      updateComments(currentEdit.pointId, points[currentEdit.pointId].data.comments);
-    }
-    textEditor.style.display = 'none';
-    currentEdit = null;
-  });
-  colorPicker.addEventListener('input', function() {
-    if (currentEdit && currentEdit.type === 'color') {
-      currentEdit.comment.colorHEX = colorPicker.value;
-      updateComments(currentEdit.pointId, points[currentEdit.pointId].data.comments);
-    }
-  });
-  colorPicker.addEventListener('blur', function() {
-    colorPicker.style.display = 'none'; currentEdit = null;
-  });
+//   textEditor.addEventListener('blur', function() {
+//     if (currentEdit && currentEdit.type === 'text') {
+//       currentEdit.comment.text = textEditor.value;
+//       updateComments(currentEdit.pointId, points[currentEdit.pointId].data.comments);
+//     }
+//     textEditor.style.display = 'none';
+//     currentEdit = null;
+//   });
+//   colorPicker.addEventListener('input', function() {
+//     if (currentEdit && currentEdit.type === 'color') {
+//       currentEdit.comment.colorHEX = colorPicker.value;
+//       updateComments(currentEdit.pointId, points[currentEdit.pointId].data.comments);
+//     }
+//   });
+//   colorPicker.addEventListener('blur', function() {
+//     colorPicker.style.display = 'none'; currentEdit = null;
+//   });
 
-  function loadPoints() {
-    axios.get('/api/v1/points').then(function(resp) {
-      layer.destroyChildren(); points = {}; commentGroups = {};
-      resp.data.forEach(function(p) {
-        var circle = new Konva.Circle({ x: p.x, y: p.y, radius: p.radius, fill: p.colorHEX, stroke: '#000', strokeWidth: 1, draggable: true });
-        circle.on('click', function() { selectedId = p.id; });
-        circle.on('dblclick', function() { axios.delete('/api/v1/points/'+p.id).then(loadPoints); });
-        circle.on('dragmove', function() { p.x = circle.x(); p.y = circle.y(); drawComments(p); layer.batchDraw(); });
-        circle.on('dragend', function() { axios.put('/api/v1/points/'+p.id, p).then(loadPoints); });
-        layer.add(circle);
-        points[p.id] = { data: p, shape: circle };
-        drawComments(p);
-      });
-      layer.draw();
-    });
-  }
+  
 
-  function updateComments(id, comments) {
-    axios.put('/api/v1/points/'+id, Object.assign({}, points[id].data, { comments: comments })).then(loadPoints);
-  }
+//   function updateComments(id, comments) {
+//     axios.put('/api/v1/points/'+id, Object.assign({}, points[id].data, { comments: comments })).then(loadPoints);
+//   }
 
-  document.getElementById('create-point').addEventListener('click', function() {
-    var x=+document.getElementById('new-x').value,
-        y=+document.getElementById('new-y').value,
-        r=+document.getElementById('new-radius').value,
-        col=document.getElementById('new-color').value;
-    axios.post('/api/v1/points',{x:x,y:y,radius:r,colorHEX:col,comments:[]}).then(loadPoints);
-  });
-  document.getElementById('save-point').addEventListener('click', function() {
-    if(!selectedId) return; var p=points[selectedId].data;
-    p.x=+document.getElementById('point-x').value;
-    p.y=+document.getElementById('point-y').value;
-    p.radius=+document.getElementById('point-radius').value;
-    p.colorHEX=document.getElementById('point-color').value;
-    axios.put('/api/v1/points/'+selectedId,p).then(loadPoints);
-  });
+//   document.getElementById('create-point').addEventListener('click', function() {
+//     var x=+document.getElementById('new-x').value,
+//         y=+document.getElementById('new-y').value,
+//         r=+document.getElementById('new-radius').value,
+//         col=document.getElementById('new-color').value;
+//     axios.post('/api/v1/points',{x:x,y:y,radius:r,colorHEX:col,comments:[]}).then(loadPoints);
+//   });
+//   document.getElementById('save-point').addEventListener('click', function() {
+//     if(!selectedId) return; var p=points[selectedId].data;
+//     p.x=+document.getElementById('point-x').value;
+//     p.y=+document.getElementById('point-y').value;
+//     p.radius=+document.getElementById('point-radius').value;
+//     p.colorHEX=document.getElementById('point-color').value;
+//     axios.put('/api/v1/points/'+selectedId,p).then(loadPoints);
+//   });
 
-  loadPoints();
-})();
+//   loadPoints();
+// })();
 </script>
 </body>
 </html>

@@ -12,4 +12,12 @@ namespace LasmartTestTask.Validators
             RuleFor(c => c.ColorHEX).NotEmpty().HEX();
         }
     }
+
+    public class UpdateCommentsValidator : AbstractValidator<CreateCommentDto[]>
+    {
+        public UpdateCommentsValidator()
+        {
+            RuleForEach(c => c).SetValidator(new CreateCommentValidator());
+        }
+    }
 }
