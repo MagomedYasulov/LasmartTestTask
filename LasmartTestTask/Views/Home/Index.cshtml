@@ -30,10 +30,10 @@
             overflow-y: auto;
         }
 
-            #sidebar input {
-                width: 100%;
-                margin-bottom: 8px;
-            }
+        #sidebar input {
+            width: 100%;
+            margin-bottom: 8px;
+        }
 
         h3 {
             margin-bottom: 8px;
@@ -49,6 +49,7 @@
             display: none;
             z-index: 10;
         }
+
     </style>
 </head>
 <body>
@@ -70,12 +71,11 @@
         <button id="save-point" type="button">Save Changes</button>
         <input type="text" id="point-comment" placeholder="Comment" />
         <input type="color" id="comment-color" />
-        <button id="save-point" type="button">Add Comment</button>
+        <button id="add-comment" type="button">Add Comment</button>
     </div>
 
 
 <script>
-
     var selectedPoint = null;
 
     var stage = new Konva.Stage({
@@ -154,61 +154,52 @@
 
         point.comments.forEach(function(c, i){
             var yPos = baseY + i * (28 + spacing);
-            var rectangle = new Konva.Group({
-                x: commentWidth / 2 * (-1),
-                y: yPos,
-                width: commentWidth,
-                height: 28
-            }); 
 
-            rectangle.add(new Konva.Rect({
-                width: commentWidth,
-                height: 28,
-                fill: c.colorHEX
-            }));
-
-            rectangle.add(new Konva.Text({
+            var text = new Konva.Text({
                 text: c.text,
                 fontSize: 18,
                 fontFamily: 'Calibri',
                 fill: '#000',
-                width: commentWidth,
                 padding: 5,
                 align: 'center'
-            }));
-            shape.add(rectangle);
+            });
+
+            var deleteX = new Konva.Text({ 
+                text: '✖', 
+                fontSize: 18, 
+                x: text.width() + 3, 
+                fill: '#000',
+                align: 'center',
+                padding : 5
+            });
+
+            var commentGroup = new Konva.Group({
+                x: text.width() / 2 * (-1),
+                y: yPos,
+                width: text.width(),
+                height: 28
+            }); 
+
+            var background = new Konva.Rect({
+                width: text.width(),
+                height: 28,
+                fill: c.colorHEX,
+                stroke: '#000', 
+                strokeWidth: 1,
+            });
+
+            deleteX.on('click', function() {
+                point.comments = point.comments.filter(function(comment) {
+                    return comment.id !== c.id;
+                });
+                updateComments(point.id, point.comments);
+            });
+
+            commentGroup.add(background);
+            commentGroup.add(text);
+            commentGroup.add(deleteX);
+            shape.add(commentGroup);
         });
-
-
-        // var baseY = p.y + p.radius + 10;
-        // var commentWidth = p.radius * 6;
-
-        // (p.comments || []).forEach(function(c, i) {
-        //     var yPos = baseY + i * (28 + spacing);
-
-        //     var background = new Konva.Rect({ x: p.x - commentWidth/2, y: yPos, width: commentWidth, height: 28, fill: c.colorHEX, cornerRadius: 4 });
-        //     var text = new Konva.Text({ text: c.text, fontSize: 14, x: background.x() + 24, y: yPos + 6, width: commentWidth - 48, align: 'left' });
-
-        //     //delete X
-        //     var deleteX = new Konva.Text({ text: '✖', fontSize: 14, x: background.x() + commentWidth - 18, y: yPos + 6, fill: '#000' });
-
-        //     //events
-        //     text.on('dblclick', function(evt) {
-        //     openTextEditor(evt, c);
-        //     });
-        //     colorSq.on('click', function(evt) {
-        //     openColorPicker(evt, c);
-        //     });
-        //     deleteX.on('click', function() {
-        //     p.comments = p.comments.filter(function(cc) { return cc !== c; });
-        //     updateComments(p.id, p.comments);
-        //     });
-
-        //     group.add(background, colorSq, text, deleteX);
-        // });
-
-        // layer.add(group);
-        // commentGroups[p.id] = group;
     }
 
     function selectPoint(pointId)
@@ -216,6 +207,10 @@
         selectedPoint = entities[pointId].point;
         document.getElementById("point-color").value = selectedPoint.colorHEX;
         document.getElementById("point-radius").value = selectedPoint.radius;
+    }
+
+    function updateComments(pointId, comments) {
+        axios.patch('/api/v1/points/' + pointId + '/comments', comments).then(loadPoints);
     }
 
     document.getElementById('point-radius').addEventListener('input', function() {
@@ -252,76 +247,30 @@
         selectedPoint.comments.push(comment);
     });
 
-    
+    document.getElementById('add-comment').addEventListener('click', function() {
+        if(!selectedPoint)
+            return;
+        
+        var commentText =  document.getElementById('point-comment').value;
+        var commentHex = document.getElementById('comment-color').value;
 
+        var comment = { text: commentText, colorHEX : commentHex };
+        selectedPoint.comments.push(comment);
+
+        updateComments(selectedPoint.id, selectedPoint.comments);
+    });
+    
+    document.getElementById('create-point').addEventListener('click', function() {
+        var x = + document.getElementById('new-x').value;
+        var y = + document.getElementById('new-y').value;
+        var r = + document.getElementById('new-radius').value;
+        var col = document.getElementById('new-color').value;
+        
+        var point = {x:x,y:y,radius:r,colorHEX:col,comments:[]};
+        axios.post('/api/v1/points', point).then(loadPoints);
+    });
 
     loadPoints();
-
-// app.js
-// (function() {
-  
-  
-//   var points = {}, commentGroups = {};
-//   var selectedId = null;
-//   var textEditor = document.getElementById('comment-text-editor');
-//   var colorPicker = document.getElementById('comment-color-picker');
-//   var currentEdit = null; { commentObj, type }
-
-
-
-//   function openTextEditor(evt, comment) {
-//     var pos = stage.getPointerPosition();
-//     textEditor.style.left = pos.x + 'px';
-//     textEditor.style.top = pos.y + 'px';
-//     textEditor.value = comment.text;
-//     textEditor.style.display = 'block';
-//     textEditor.focus();
-//     currentEdit = { comment: comment, type: 'text', pointId: selectedId };
-//   }
-//   function openColorPicker(evt, comment) {
-//     var pos = stage.getPointerPosition();
-//     colorPicker.style.left = pos.x + 'px';
-//     colorPicker.style.top = pos.y + 'px';
-//     colorPicker.value = comment.colorHEX;
-//     colorPicker.style.display = 'block';
-//     currentEdit = { comment: comment, type: 'color', pointId: selectedId };
-//   }
-
-//   textEditor.addEventListener('blur', function() {
-//     if (currentEdit && currentEdit.type === 'text') {
-//       currentEdit.comment.text = textEditor.value;
-//       updateComments(currentEdit.pointId, points[currentEdit.pointId].data.comments);
-//     }
-//     textEditor.style.display = 'none';
-//     currentEdit = null;
-//   });
-//   colorPicker.addEventListener('input', function() {
-//     if (currentEdit && currentEdit.type === 'color') {
-//       currentEdit.comment.colorHEX = colorPicker.value;
-//       updateComments(currentEdit.pointId, points[currentEdit.pointId].data.comments);
-//     }
-//   });
-//   colorPicker.addEventListener('blur', function() {
-//     colorPicker.style.display = 'none'; currentEdit = null;
-//   });
-
-  
-
-//   function updateComments(id, comments) {
-//     axios.put('/api/v1/points/'+id, Object.assign({}, points[id].data, { comments: comments })).then(loadPoints);
-//   }
-
-//   document.getElementById('create-point').addEventListener('click', function() {
-//     var x=+document.getElementById('new-x').value,
-//         y=+document.getElementById('new-y').value,
-//         r=+document.getElementById('new-radius').value,
-//         col=document.getElementById('new-color').value;
-//     axios.post('/api/v1/points',{x:x,y:y,radius:r,colorHEX:col,comments:[]}).then(loadPoints);
-//   });
-
-
-//   loadPoints();
-// })();
 </script>
 </body>
 </html>
