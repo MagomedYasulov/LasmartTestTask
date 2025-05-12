@@ -1,146 +1,185 @@
-(function () {
-    var stage = new Konva.Stage({
-        container: 'container',
-        width: window.innerWidth - 300,
-        height: window.innerHeight
-    });
-    var layer = new Konva.Layer();
-    stage.add(layer);
-    var points = {};
-    var commentGroups = {};
-    var selectedId = null;
+﻿var selectedPoint = null;
 
-    function drawComments(p) {
-        // remove existing group
-        if (commentGroups[p.id]) commentGroups[p.id].destroy();
-        var group = new Konva.Group();
-        p.comments = p.comments || [];
-        p.comments.forEach(function (c, i) {
-            var padding = 4;
-            var text = new Konva.Text({
-                text: c.text,
-                fontSize: 14,
-                x: p.x - p.radius,
-                y: p.y + p.radius + i * 24 + 8,
-                width: p.radius * 2,
-                padding: padding,
-                align: 'center'
-            });
-            var rect = new Konva.Rect({
-                x: text.x(),
-                y: text.y(),
-                width: text.width(),
-                height: text.height(),
-                fill: c.colorHEX,
-                cornerRadius: 4
-            });
-            // bring text above rect
-            group.add(rect);
-            group.add(text);
+var stage = new Konva.Stage({
+    container: 'container',
+    width: window.innerWidth - 300,
+    height: window.innerHeight
+});
 
-            // edit on click
-            rect.on('click', function () {
-                var newText = prompt('Edit comment:', c.text);
-                if (newText !== null) {
-                    c.text = newText;
-                    updateComments(p.id, p.comments);
-                }
+var layer = new Konva.Layer();
+stage.add(layer);
+
+var entities = {};
+var commentGroups = {};
+
+function loadPoints() {
+    axios.get('/api/v1/points').then(function (resp) {
+        layer.destroyChildren();
+        entities = {};
+        commentGroups = {};
+        resp.data.forEach(function (p) {
+
+            var group = new Konva.Group({
+                x: p.x,
+                y: p.y,
+                draggable: true
             });
-            // delete on dblclick
-            rect.on('dblclick', function () {
-                if (confirm('Delete this comment?')) {
-                    p.comments = p.comments.filter(function (cc) { return cc !== c; });
-                    updateComments(p.id, p.comments);
-                }
-            });
+
+
+            entities[p.id] = { point: p, shape: group };
+            layer.add(group);
+
+            group.on('click', function () { selectPoint(p.id) });
+            group.on('dragmove', function () { p.x = group.x(); p.y = group.y(); layer.batchDraw(); });
+            group.on('dragend', function () { selectPoint(p.id); axios.put('/api/v1/points/' + p.id, p); });
+
+            drawPoint(p.id);
+            drawComments(p.id);
         });
-        layer.add(group);
-        commentGroups[p.id] = group;
-    }
+        layer.draw();
+    });
+}
 
-    function loadPoints() {
-        axios.get('/api/v1/points').then(function (resp) {
-            var data = resp.data;
-            layer.destroyChildren();
-            points = {};
-            commentGroups = {};
-            data.forEach(function (p) {
-                var circle = new Konva.Circle({
-                    x: p.x,
-                    y: p.y,
-                    radius: p.radius,
-                    fill: p.colorHEX,
-                    stroke: '#000',
-                    strokeWidth: 1,
-                    draggable: true
-                });
-                circle.on('click', function () { selectPoint(p); });
-                circle.on('dblclick', function () {
-                    axios.delete('/api/v1/points/' + p.id).then(loadPoints);
-                });
-                circle.on('dragmove', function () {
-                    p.x = circle.x();
-                    p.y = circle.y();
-                    drawComments(p);
-                    layer.batchDraw();
-                });
-                circle.on('dragend', function () {
-                    axios.put('/api/v1/points/' + p.id, p).then(loadPoints);
-                });
-                layer.add(circle);
-                points[p.id] = { data: p, shape: circle };
-                drawComments(p);
-            });
-            layer.draw();
+function drawPoint(pointId) {
+    var entity = entities[pointId];
+    var point = entity.point;
+    var shape = entity.shape;
+
+    var circle = new Konva.Circle(
+    {
+        radius: point.radius,
+        fill: point.colorHEX,
+        stroke: '#000',
+        strokeWidth: 1,
+    });
+
+    circle.on('dblclick', function () { axios.delete('/api/v1/points/' + pointId).then(loadPoints); });
+    shape.add(circle);
+}
+
+function drawComments(pointId) {
+    var entity = entities[pointId];
+    if (!entity)
+        return;
+
+    var point = entity.point;
+    var shape = entity.shape;
+
+    shape.getChildren(c => c.getClassName() != 'Circle').forEach(function (c) {
+        c.destroy();
+    });
+
+    var spacing = 6;
+    var commentWidth = point.radius * 6;
+    var baseY = point.radius + 20;
+
+    point.comments.forEach(function (c, i) {
+        var yPos = baseY + i * (28 + spacing);
+
+        var text = new Konva.Text({
+            text: c.text,
+            fontSize: 18,
+            fontFamily: 'Calibri',
+            fill: '#000',
+            padding: 5,
+            align: 'center'
         });
-    }
 
-    function selectPoint(p) {
-        selectedId = p.id;
-        document.getElementById('point-id').value = p.id;
-        document.getElementById('point-x').value = p.x;
-        document.getElementById('point-y').value = p.y;
-        document.getElementById('point-radius').value = p.radius;
-        document.getElementById('point-color').value = p.colorHEX;
-    }
+        var deleteX = new Konva.Text({
+            text: '✖',
+            fontSize: 18,
+            x: text.width() + 3,
+            fill: '#000',
+            align: 'center',
+            padding: 5
+        });
 
-    function updateComments(id, comments) {
-        axios.put('/api/v1/points/' + id, Object.assign({}, points[id].data, { comments: comments }))
-            .then(loadPoints);
-    }
+        var commentGroup = new Konva.Group({
+            x: text.width() / 2 * (-1),
+            y: yPos,
+            width: text.width(),
+            height: 28
+        });
 
-    document.getElementById('create-point').addEventListener('click', function () {
-        var x = Number(document.getElementById('new-x').value);
-        var y = Number(document.getElementById('new-y').value);
-        var radius = Number(document.getElementById('new-radius').value);
-        var colorHEX = document.getElementById('new-color').value;
-        axios.post('/api/v1/points', { x: x, y: y, radius: radius, colorHEX: colorHEX, comments: [] })
-            .then(loadPoints);
+        var background = new Konva.Rect({
+            width: text.width(),
+            height: 28,
+            fill: c.colorHEX,
+            stroke: '#000',
+            strokeWidth: 1,
+        });
+
+        deleteX.on('click', function () {
+            point.comments = point.comments.filter(function (comment) {
+                return comment.id !== c.id;
+            });
+            updateComments(point.id, point.comments);
+        });
+
+        commentGroup.add(background);
+        commentGroup.add(text);
+        commentGroup.add(deleteX);
+        shape.add(commentGroup);
     });
+}
 
-    document.getElementById('save-point').addEventListener('click', function () {
-        if (!selectedId) return;
-        var p = points[selectedId].data;
-        p.x = Number(document.getElementById('point-x').value);
-        p.y = Number(document.getElementById('point-y').value);
-        p.radius = Number(document.getElementById('point-radius').value);
-        p.colorHEX = document.getElementById('point-color').value;
-        axios.put('/api/v1/points/' + selectedId, p).then(loadPoints);
-    });
+function selectPoint(pointId) {
+    selectedPoint = entities[pointId].point;
+    document.getElementById("point-color").value = selectedPoint.colorHEX;
+    document.getElementById("point-radius").value = selectedPoint.radius;
+}
 
-    // Click on stage background to add comment to selected point
-    stage.on('contextmenu', function (e) {
-        e.evt.preventDefault();
-        if (!selectedId) return;
-        var commentText = prompt('New comment text:');
-        if (!commentText) return;
-        var commentColor = prompt('Comment color (hex):', '#ffff00');
-        if (!commentColor) return;
-        var p = points[selectedId].data;
-        p.comments = p.comments || [];
-        p.comments.push({ id: 0, text: commentText, colorHEX: commentColor });
-        updateComments(selectedId, p.comments);
-    });
+function updateComments(pointId, comments) {
+    axios.patch('/api/v1/points/' + pointId + '/comments', comments).then(loadPoints);
+}
 
-    loadPoints();
-})();
+document.getElementById('point-radius').addEventListener('input', function () {
+    if (!selectedPoint)
+        return;
+
+    selectedPoint.radius = parseInt(document.getElementById('point-radius').value);
+    axios.put('/api/v1/points/' + selectedPoint.id, selectedPoint).then(loadPoints);
+});
+
+
+document.getElementById('point-color').addEventListener('input', function () {
+    if (!selectedPoint)
+        return;
+
+    selectedPoint.colorHEX = document.getElementById('point-color').value;
+    var shape = entities[selectedPoint.id].shape;
+    shape.getChildren()[0].setAttr('fill', selectedPoint.colorHEX);
+});
+
+document.getElementById('point-color').addEventListener('change', function () {
+    if (!selectedPoint)
+        return;
+
+    selectedPoint.colorHEX = document.getElementById('point-color').value;
+    axios.put('/api/v1/points/' + selectedPoint.id, selectedPoint).then(loadPoints);
+});
+
+document.getElementById('add-comment').addEventListener('click', function () {
+    if (!selectedPoint)
+        return;
+
+    var commentText = document.getElementById('point-comment').value;
+    var commentHex = document.getElementById('comment-color').value;
+
+    var comment = { text: commentText, colorHEX: commentHex };
+    selectedPoint.comments.push(comment);
+
+    updateComments(selectedPoint.id, selectedPoint.comments);
+});
+
+document.getElementById('create-point').addEventListener('click', function () {
+    var x = + document.getElementById('new-x').value;
+    var y = + document.getElementById('new-y').value;
+    var r = + document.getElementById('new-radius').value;
+    var col = document.getElementById('new-color').value;
+
+    var point = { x: x, y: y, radius: r, colorHEX: col, comments: [] };
+    axios.post('/api/v1/points', point).then(loadPoints);
+});
+
+loadPoints();
